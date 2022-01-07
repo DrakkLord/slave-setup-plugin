@@ -2,10 +2,9 @@
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
-        <groupId>org.jenkins-ci.plugins</groupId>
-        <artifactId>plugin</artifactId>
-        <version>3.4</version>
-        <relativePath />
+		<groupId>org.jenkins-ci.plugins</groupId>
+		<artifactId>plugin</artifactId>
+		<version>4.9</version>
     </parent>
 
     <groupId>io.jenkins.plugins</groupId>
@@ -54,23 +53,22 @@
         <url>https://github.com/jenkinsci/slave-setup-plugin</url>
       <tag>HEAD</tag>
   </scm>
-
+  
     <repositories>
         <repository>
             <id>repo.jenkins-ci.org</id>
-            <url>http://repo.jenkins-ci.org/public/</url>
+            <url>https://repo.jenkins-ci.org/public/</url>
         </repository>
     </repositories>
-
-    <distributionManagement>
-        <repository>
-            <id>maven.jenkins-ci.org</id>
-            <url>http://maven.jenkins-ci.org/content/repositories/releases/</url>
-        </repository>
-    </distributionManagement>
+    <pluginRepositories>
+        <pluginRepository>
+            <id>repo.jenkins-ci.org</id>
+            <url>https://repo.jenkins-ci.org/public/</url>
+        </pluginRepository>
+    </pluginRepositories>
 
     <properties>
-        <jenkins.version>2.7.3</jenkins.version>
+        <jenkins.version>2.164.1</jenkins.version>
         <java.level>8</java.level>
     </properties>
 
@@ -86,13 +84,6 @@
             </plugin>
         </plugins>
     </build>
-
-    <pluginRepositories>
-        <pluginRepository>
-            <id>repo.jenkins-ci.org</id>
-            <url>http://repo.jenkins-ci.org/public/</url>
-        </pluginRepository>
-    </pluginRepositories>
 
     <licenses>
         <license>

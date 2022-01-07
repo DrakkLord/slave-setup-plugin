@@ -1,6 +1,7 @@
 package org.jenkinsci.plugins.slave_setup;
 
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -10,6 +11,7 @@ import java.util.Set;
 import hudson.EnvVars;
 import hudson.FilePath;
 import hudson.Launcher;
+import hudson.Proc;
 import hudson.model.Computer;
 import hudson.model.Label;
 import hudson.model.Node;
@@ -73,8 +75,9 @@ public class Utils {
             throws IOException, InterruptedException {
 
         Launcher launcher = root.createLauncher(listener);
-        if (enviroment == null)
-                enviroment = new EnvVars();
+        if (enviroment == null) {
+            enviroment = new EnvVars();
+        }
         if (launcher.isUnix()) {
             /*
              * Originally this plugin used only Shell(script) and
@@ -84,19 +87,29 @@ public class Utils {
              */
             Shell shell = new Shell(script);
             FilePath scriptFile = shell.createScriptFile(root);
-            return launcher.launch().cmds(shell.buildCommandLine(scriptFile)).pwd(root).envs(enviroment)
-                    .stdout(listener).join();
+            return launcher.launch()
+                    .cmds(shell.buildCommandLine(scriptFile))
+                    .pwd(root)
+                    .envs(enviroment)
+                    .stdout(listener.getLogger())
+                    .stderr(listener.getLogger())
+                    .join();
         } else {
             /*
              * We create a BatchFile obj instead a Shell classObject if the current OS is
              * not Unix Also we comment those verbose printings about Slave's OS
              */
-            BatchFile batch = new BatchFile(script);
+            BatchFile batch = new BatchFileNoEcho(script);
             FilePath scriptFile = batch.createScriptFile(root);
-            return launcher.launch().cmds(batch.buildCommandLine(scriptFile)).pwd(root).envs(enviroment)
-                    .stdout(listener).join();
+            return
+                    launcher.launch()
+                    .cmds(batch.buildCommandLine(scriptFile))
+                    .pwd(root)
+                    .envs(enviroment)
+                    .stdout(listener.getLogger())
+                    .stderr(listener.getLogger())
+                    .join();
         }
-
     }
 
     /**

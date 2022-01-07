@@ -85,7 +85,7 @@ public class SetupDeployer {
      */
     public static int executeScriptOnMaster(TaskListener listener, String script, EnvVars enviroment) {
 
-        Node node = Jenkins.getInstance();
+        Node node = Jenkins.get();
         FilePath filePath = node.getRootPath();
         Components.debug("Master given path is " + filePath.getRemote());
         try {

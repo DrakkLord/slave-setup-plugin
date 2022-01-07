@@ -7,6 +7,7 @@ import hudson.model.*;
 import hudson.model.labels.LabelAtom;
 import hudson.util.FormValidation;
 import hudson.util.LogTaskListener;
+import hudson.model.Messages;
 import jenkins.model.GlobalConfiguration;
 import jenkins.model.Jenkins;
 import net.sf.json.JSONObject;
@@ -30,7 +31,7 @@ public class SetupConfig extends GlobalConfiguration {
 
     private static final Logger LOGGER = Logger.getLogger(Descriptor.class.getName());
 
-    private List<SetupConfigItem> setupConfigItems = new ArrayList<SetupConfigItem>();
+    private List<SetupConfigItem> setupConfigItems = new ArrayList<>();
 
     public SetupConfig() {
         load();
@@ -55,7 +56,7 @@ public class SetupConfig extends GlobalConfiguration {
      * @return Boolean if the config setup for all the slaves went correctly if true.
      */
     @Override
-    public boolean configure(StaplerRequest req, JSONObject json) throws FormException {
+    public boolean configure(StaplerRequest req, JSONObject json) {
         req.bindJSON(this, json);
         save();
 
@@ -83,7 +84,7 @@ public class SetupConfig extends GlobalConfiguration {
      */
     public AutoCompletionCandidates doAutoCompleteAssignedLabelString(@QueryParameter String value) {
         AutoCompletionCandidates c = new AutoCompletionCandidates();
-        Set<Label> labels = Jenkins.getInstance().getLabels();
+        Set<Label> labels = Jenkins.get().getLabels();
         List<String> queries = new AutoCompleteSeeder(value).getSeeds();
 
         for (String term : queries) {
@@ -97,7 +98,7 @@ public class SetupConfig extends GlobalConfiguration {
     }
 
     public FormValidation doCheckFilesDir(@QueryParameter String value) {
-        Jenkins.getInstance().checkPermission(Jenkins.ADMINISTER);
+        Jenkins.get().checkPermission(Jenkins.ADMINISTER);
         if (Util.fixEmpty(value) == null) {
             return FormValidation.ok(); // no value
         }
@@ -117,21 +118,19 @@ public class SetupConfig extends GlobalConfiguration {
         try {
             Label.parseExpression(value);
         } catch (ANTLRException e) {
-            return FormValidation.error(e,
-                    Messages.AbstractProject_AssignedLabelString_InvalidBooleanExpression(e.getMessage()));
+            return FormValidation.error(e, "Invalid boolean expression: " + e.getMessage());
         }
 
-        Label l = Jenkins.getInstance().getLabel(value);
+        Label l = Jenkins.get().getLabel(value);
 
         if (l.isEmpty()) {
             for (LabelAtom a : l.listAtoms()) {
                 if (a.isEmpty()) {
                     LabelAtom nearest = LabelAtom.findNearest(a.getName());
-                    return FormValidation.warning(Messages.AbstractProject_AssignedLabelString_NoMatch_DidYouMean(
-                            a.getName(), nearest.getDisplayName()));
+                    return FormValidation.warning("Assigned label string " + a.getName() + " didn't match, did you mean " + nearest.getDisplayName() + "?");
                 }
             }
-            return FormValidation.warning(Messages.AbstractProject_AssignedLabelString_NoMatch());
+            return FormValidation.warning("Assigned label didn't match");
         }
         return FormValidation.ok();
     }
@@ -141,14 +140,14 @@ public class SetupConfig extends GlobalConfiguration {
      * potential terms to match against the list of defined labels.
      */
     static class AutoCompleteSeeder {
-        private String source;
+        private final String source;
 
         AutoCompleteSeeder(String source) {
             this.source = source;
         }
 
         List<String> getSeeds() {
-            ArrayList<String> terms = new ArrayList<String>();
+            ArrayList<String> terms = new ArrayList<>();
             boolean trailingQuote = source.endsWith("\"");
             boolean leadingQuote = source.startsWith("\"");
             boolean trailingSpace = source.endsWith(" ");

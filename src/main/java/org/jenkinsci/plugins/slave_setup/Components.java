@@ -28,9 +28,9 @@ public class Components {
 
     private static final String FILENAME = "slave_setup.ini";
 
-    private FilePath remotePath;
+    private final FilePath remotePath;
     private List<SetupConfigItem> configs;
-    private Computer slave;
+    private final Computer slave;
     private static TaskListener listener;
 
     private List<String> cache;
@@ -121,7 +121,7 @@ public class Components {
      */
     private List<String> getCache() {
         if (cache == null)
-            cache = new ArrayList<String>();
+            cache = new ArrayList<>();
         return cache;
     }
 
@@ -148,7 +148,7 @@ public class Components {
                 break;
             }
         }
-        if (writed != true) {
+        if (!writed) {
             cache.add(component); // if we don't write cache yet, will add at end
         }
     }
@@ -162,7 +162,7 @@ public class Components {
      * @throws AbortException       User close/Cancelled
      * 
      */
-    public void doSetup() throws AbortException, IOException, InterruptedException {
+    public void doSetup() throws IOException, InterruptedException {
         if (!this.newDeploy()) {
             // If slave contains some setups, will read cache data from slave disk
             Components.info("Updating existing installations for " + slave.getName());
@@ -216,7 +216,7 @@ public class Components {
      * @throws IOException          IOErrors accessing cache
      * @throws AbortException       User close/Cancelled
      */
-    public void doConfig() throws AbortException, IOException, InterruptedException {
+    public void doConfig() throws IOException, InterruptedException {
         if (!this.newDeploy()) {
             // If slave contains some setups, will read cache data from slave disk
             Components.info("Updating existing installations for " + slave.getName());
@@ -389,7 +389,7 @@ public class Components {
      * @throws IOException          IO error accessing remotePath
      */
     private List<String> createConfigStream() throws IOException, InterruptedException {
-        return new ArrayList<String>(Arrays.asList(this.configFile.readToString().split(this.remoteSeparator)));
+        return new ArrayList<>(Arrays.asList(this.configFile.readToString().split(this.remoteSeparator)));
 
     }
 

@@ -2,10 +2,12 @@ package org.jenkinsci.plugins.slave_setup;
 
 
 import java.io.IOException;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.base.Strings;
 
 import hudson.remoting.Channel;
+import hudson.slaves.OfflineCause;
 import org.kohsuke.stapler.DataBoundConstructor;
 
 import hudson.AbortException;
@@ -28,6 +30,9 @@ public class SetupSlaveLauncher extends DelegatingComputerLauncher {
 
     private volatile boolean executingStartScript;
     private volatile boolean executingStopScript;
+    private volatile boolean isBeforeDisconnect;
+    private final AtomicInteger currentLaunchAttempt = new AtomicInteger();
+    private volatile RelaunchListener relaunchListener;
 
     @DataBoundConstructor
     public SetupSlaveLauncher(ComputerLauncher launcher,
@@ -105,17 +110,19 @@ public class SetupSlaveLauncher extends DelegatingComputerLauncher {
         final LauncherLogger logger = new LauncherLogger(listener.getLogger());
 
         if (!executingStartScript) {
+            currentLaunchAttempt.set(0);
             if (executingStopScript) {
-                logger.error("Launch called while disconnect is still in progress!");
+                logger.error("Launch called while disconnect is still in progress! ( launch will proceed )");
             }
             executingStopScript = false;
+            isBeforeDisconnect = false;
 
             try {
                 logger.state("Pre-Launch Node");
                 executingStartScript = true;
                 execute(startScript, listener);
             } catch (Exception e) {
-                logger.error("Failed to execute script '" + startScript);
+                logger.error("Failed to execute script '" + startScript + "'");
                 logger.stacktrace(e);
                 executingStartScript = false;
                 return;
@@ -126,9 +133,32 @@ public class SetupSlaveLauncher extends DelegatingComputerLauncher {
             logger.error("Pre-Launch called while Pre-Launch is in progress!");
         }
 
-        final int maxAttempts = maxLaunchAttempts <= 0 ? 1 : maxLaunchAttempts;
-        for (int i = 0; i < maxAttempts; i++) {
-            logger.state("Launch attempt " + String.valueOf(i+1) + " of " + String.valueOf(maxAttempts));
+        final Channel computerChannel = computer.getChannel();
+        if (computerChannel != null) {
+            relaunchListener = new RelaunchListener(computer, listener, getMaxLaunchAttemptsLimited());
+            computerChannel.addListener(relaunchListener);
+        }
+
+        try {
+            tryLaunch(computer, listener);
+            executingStartScript = false;
+            return;
+        } catch (LaunchFailedException e) {
+            logger.error("Failed to launch");
+        }
+        executingStartScript = false;
+
+        logger.state("Moving to disconnect after failed launch attempt(s)");
+        computer.disconnect(new OfflineCause.LaunchFailed());
+        afterDisconnect(computer, listener);
+    }
+
+    private void tryLaunch(SlaveComputer computer, TaskListener listener) throws LaunchFailedException {
+        final LauncherLogger logger = new LauncherLogger(listener.getLogger());
+        if (currentLaunchAttempt.get() < getMaxLaunchAttemptsLimited()) {
+            currentLaunchAttempt.incrementAndGet();
+
+            logger.state("Launch attempt " + String.valueOf(currentLaunchAttempt.get() +1) + " of " + String.valueOf(getMaxLaunchAttemptsLimited()));
             try {
                 super.launch(computer, listener);
                 executingStartScript = false;
@@ -137,12 +167,29 @@ public class SetupSlaveLauncher extends DelegatingComputerLauncher {
                 logger.error("Launch failed:");
                 logger.stacktrace(e);
             }
-            Thread.sleep(1500);
+            try {
+                Thread.sleep(1500);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
         }
-        executingStartScript = false;
+        throw new LaunchFailedException();
+    }
 
-        logger.state("Moving to disconnect after failed launch attempt(s)");
-        afterDisconnect(computer, listener);
+    @Override
+    public void beforeDisconnect(SlaveComputer computer, TaskListener listener) {
+        super.beforeDisconnect(computer, listener);
+        isBeforeDisconnect = true;
+
+        // cleanup relaunch listener
+        final Channel computerChannel = computer.getChannel();
+        if (computerChannel != null) {
+            final RelaunchListener localRelaunchListener = relaunchListener;
+            if (localRelaunchListener != null) {
+                relaunchListener = null;
+                computerChannel.removeListener(localRelaunchListener);
+            }
+        }
     }
 
     @Override
@@ -152,7 +199,7 @@ public class SetupSlaveLauncher extends DelegatingComputerLauncher {
 
         if (!executingStopScript) {
             if (executingStartScript) {
-                logger.error("Disconnect called while launch is still in progress!");
+                logger.error("Disconnect called while launch is still in progress! ( disconnect will proceed )");
             }
             executingStartScript = false;
 
@@ -206,6 +253,31 @@ public class SetupSlaveLauncher extends DelegatingComputerLauncher {
             // seems to be called twice and this message is always displayed?
 //            logger.error("Post-Disconnect called while Post-Disconnect is in progress!");
 //        }
+    }
+
+    class RelaunchListener extends Channel.Listener {
+        private final SlaveComputer computer;
+        private final TaskListener listener;
+        private final int maxAttempts;
+
+        RelaunchListener(SlaveComputer computer, TaskListener listener, int maxAttempts) {
+            this.computer = computer;
+            this.listener = listener;
+            this.maxAttempts = maxAttempts;
+        }
+
+        @Override
+        public void onClosed(Channel channel, IOException cause) {
+            super.onClosed(channel, cause);
+            if (!executingStopScript && !isBeforeDisconnect && currentLaunchAttempt.get() < maxAttempts) {
+                executingStartScript = true;
+                tryLaunch(computer, listener);
+            }
+        }
+    }
+
+    private int getMaxLaunchAttemptsLimited() {
+        return maxLaunchAttempts <= 0 ? 1 : maxLaunchAttempts;
     }
 
     @Extension

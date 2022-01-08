@@ -31,7 +31,7 @@ public class SetupSlaveLauncher extends DelegatingComputerLauncher {
     private volatile boolean executingStartScript;
     private volatile boolean executingStopScript;
     private volatile boolean isBeforeDisconnect;
-    private final AtomicInteger currentLaunchAttempt = new AtomicInteger();
+    private volatile int currentLaunchAttempt;
     private volatile RelaunchListener relaunchListener;
 
     @DataBoundConstructor
@@ -110,7 +110,7 @@ public class SetupSlaveLauncher extends DelegatingComputerLauncher {
         final LauncherLogger logger = new LauncherLogger(listener.getLogger());
 
         if (!executingStartScript) {
-            currentLaunchAttempt.set(0);
+            currentLaunchAttempt = 0;
             if (executingStopScript) {
                 logger.error("Launch called while disconnect is still in progress! ( launch will proceed )");
             }
@@ -155,10 +155,10 @@ public class SetupSlaveLauncher extends DelegatingComputerLauncher {
 
     private void tryLaunch(SlaveComputer computer, TaskListener listener) throws LaunchFailedException {
         final LauncherLogger logger = new LauncherLogger(listener.getLogger());
-        if (currentLaunchAttempt.get() < getMaxLaunchAttemptsLimited()) {
-            currentLaunchAttempt.incrementAndGet();
+        if (currentLaunchAttempt < getMaxLaunchAttemptsLimited()) {
+            currentLaunchAttempt += 1;
 
-            logger.state("Launch attempt " + String.valueOf(currentLaunchAttempt.get() +1) + " of " + String.valueOf(getMaxLaunchAttemptsLimited()));
+            logger.state("Launch attempt " + String.valueOf(currentLaunchAttempt +1) + " of " + String.valueOf(getMaxLaunchAttemptsLimited()));
             try {
                 super.launch(computer, listener);
                 executingStartScript = false;
@@ -269,7 +269,7 @@ public class SetupSlaveLauncher extends DelegatingComputerLauncher {
         @Override
         public void onClosed(Channel channel, IOException cause) {
             super.onClosed(channel, cause);
-            if (!executingStopScript && !isBeforeDisconnect && currentLaunchAttempt.get() < maxAttempts) {
+            if (!executingStopScript && !isBeforeDisconnect && currentLaunchAttempt < maxAttempts) {
                 executingStartScript = true;
                 tryLaunch(computer, listener);
             }

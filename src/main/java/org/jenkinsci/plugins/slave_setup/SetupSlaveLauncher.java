@@ -156,9 +156,8 @@ public class SetupSlaveLauncher extends DelegatingComputerLauncher {
     private void tryLaunch(SlaveComputer computer, TaskListener listener) throws LaunchFailedException {
         final LauncherLogger logger = new LauncherLogger(listener.getLogger());
         if (currentLaunchAttempt < getMaxLaunchAttemptsLimited()) {
+            logger.state("Launch attempt " + String.valueOf(currentLaunchAttempt + 1) + " of " + String.valueOf(getMaxLaunchAttemptsLimited()));
             currentLaunchAttempt += 1;
-
-            logger.state("Launch attempt " + String.valueOf(currentLaunchAttempt +1) + " of " + String.valueOf(getMaxLaunchAttemptsLimited()));
             try {
                 super.launch(computer, listener);
                 executingStartScript = false;
